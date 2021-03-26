@@ -48,11 +48,32 @@ def calculate_gas_circle(big_circle, small_circle, ratio):
     return Circle(Position(ratio_x, ratio_y), ratio_radius)
 
 
-def calculate_time_in_gas(current_time_in_gas, current_time, big_circle, small_circle, close_time, time_step, player_position, player_speed):
+def move_player_towards(position, player_position, player_move_distance):
+    x_difference = (position.x - player_position.x)
+    y_difference = (position.y - player_position.y)
+    distance_to_position = math.sqrt((x_difference * x_difference) + (y_difference * y_difference))
+    if distance_to_position < player_move_distance:
+        return position
+    ratio = player_move_distance / distance_to_position
+    reversed_ratio = 1.0 - ratio
+    ratio_x = (reversed_ratio * player_position.x) + (ratio * position.x)
+    ratio_y = (reversed_ratio * player_position.y) + (ratio * position.y)
+    return Position(ratio_x, ratio_y)
+
+
+def move_player(small_circle, player_position, player_move_distance, player_strategy):
+    if player_strategy == "shortest":
+        return move_player_towards(small_circle.position, player_position, player_move_distance)
+    else:
+        raise Exception("Unknown strategy {}".format(player_strategy))
+
+
+def calculate_time_in_gas(current_time_in_gas, current_time, big_circle, small_circle, close_time, time_step, player_position, player_speed, player_strategy):
     current_time += time_step
     if close_time >= current_time:
         gas_circle = calculate_gas_circle(big_circle, small_circle, current_time / close_time)
-        player_in_gas = not circle_contains_position(gas_circle, player_position)
+        moved_player = move_player(small_circle, player_position, player_speed * time_step, player_strategy)
+        player_in_gas = not circle_contains_position(gas_circle, moved_player)
 
         if not circle_contains_circle(big_circle, small_circle):
             print("Invalid arguments, big circle does not completely contain small circle")
@@ -64,13 +85,13 @@ def calculate_time_in_gas(current_time_in_gas, current_time, big_circle, small_c
         print("Current time: {}".format(current_time))
         print("Close time: {}".format(close_time))
         print("Time step: {}".format(time_step))
-        print("Player position: {}".format(player_position))
+        print("Player position: {}".format(moved_player))
         print("Player speed: {}".format(player_speed))
         print("Player in gas: {}".format(player_in_gas))
         print("-------------------------------------------------------------------------------------------------------")
         if player_in_gas:
             current_time_in_gas += time_step
-        return calculate_time_in_gas(current_time_in_gas, current_time, big_circle, small_circle, close_time, time_step, player_position, player_speed)
+        return calculate_time_in_gas(current_time_in_gas, current_time, big_circle, small_circle, close_time, time_step, moved_player, player_speed, player_strategy)
     return current_time_in_gas
 
 
@@ -86,6 +107,7 @@ parser.add_argument("--timestep", required=True, help="Time that passes between 
 parser.add_argument("--playerx", required=True, help="X Position of the Player", type=float)
 parser.add_argument("--playery", required=True, help="Y Position of the Player", type=float)
 parser.add_argument("--playerspeed", required=True, help="Distance covered by Player per unit of time", type=float)
+parser.add_argument("--playerstrategy", required=True, help="Strategy the player should use to run e.g. Shortest", type=str)
 args = parser.parse_args()
 
 input_big_circle = Circle(Position(args.bigx, args.bigy), args.bigradius)
@@ -96,5 +118,5 @@ if not circle_contains_position(input_big_circle, input_player_position):
     print("Invalid arguments, big circle does not contain player")
     exit(1)
 
-time_in_gas = calculate_time_in_gas(0.0, 0.0, input_big_circle, input_small_circle, args.closetime, args.timestep, input_player_position, args.playerspeed)
+time_in_gas = calculate_time_in_gas(0.0, 0.0, input_big_circle, input_small_circle, args.closetime, args.timestep, input_player_position, args.playerspeed, args.playerstrategy)
 print("Player spent {} time in gas".format(time_in_gas))
