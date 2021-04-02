@@ -21,9 +21,7 @@ class Circle:
 
 
 def circle_contains_circle(big_circle, small_circle):
-    x_distance = big_circle.position.x - small_circle.position.x
-    y_distance = big_circle.position.y - small_circle.position.y
-    center_distance = math.sqrt((x_distance * x_distance) + (y_distance * y_distance))
+    center_distance = distance_between_positions(big_circle.position, small_circle.position)
     if big_circle.radius >= center_distance + small_circle.radius:
         return True
     else:
@@ -31,9 +29,7 @@ def circle_contains_circle(big_circle, small_circle):
 
 
 def circle_contains_position(circle, position):
-    x_distance = circle.position.x - position.x
-    y_distance = circle.position.y - position.y
-    center_distance = math.sqrt((x_distance * x_distance) + (y_distance * y_distance))
+    center_distance = distance_between_positions(circle.position, position)
     if circle.radius >= center_distance:
         return True
     else:
@@ -48,10 +44,14 @@ def calculate_gas_circle(big_circle, small_circle, ratio):
     return Circle(Position(ratio_x, ratio_y), ratio_radius)
 
 
+def distance_between_positions(one, two):
+    x_difference = (one.x - two.x)
+    y_difference = (one.y - two.y)
+    return math.sqrt((x_difference * x_difference) + (y_difference * y_difference))
+
+
 def move_player_towards(position, player_position, player_move_distance):
-    x_difference = (position.x - player_position.x)
-    y_difference = (position.y - player_position.y)
-    distance_to_position = math.sqrt((x_difference * x_difference) + (y_difference * y_difference))
+    distance_to_position = distance_between_positions(position, player_position)
     if distance_to_position < player_move_distance:
         return position
     ratio = player_move_distance / distance_to_position
@@ -61,9 +61,37 @@ def move_player_towards(position, player_position, player_move_distance):
     return Position(ratio_x, ratio_y)
 
 
-def move_player(small_circle, player_position, player_move_distance, player_strategy):
+def find_right_angle_positions(small_circle, player_position, player_move_distance):
+    hypotenuse_length = distance_between_positions(small_circle.position, player_position)
+    opposite_length = small_circle.radius
+    radians = math.asin(opposite_length / hypotenuse_length)
+    return [
+        Position(player_move_distance * math.cos(radians), player_move_distance * math.sin(radians)),
+        Position(player_move_distance * math.cos(-radians), player_move_distance * math.sin(-radians))
+    ]
+
+
+def choose_edgiest_point(big_circle, small_circle, player_position, player_move_distance):
+    positions = find_right_angle_positions(small_circle, player_position, player_move_distance)
+    distance_one = distance_between_positions(big_circle.position, positions[0])
+    distance_two = distance_between_positions(big_circle.position, positions[1])
+    if distance_one > distance_two:
+        return positions[0]
+    else:
+        return positions[1]
+
+
+def move_player(big_circle, small_circle, gas_circle, player_position, player_move_distance, player_strategy):
     if player_strategy == "shortest":
+        print("Moving shortest")
         return move_player_towards(small_circle.position, player_position, player_move_distance)
+    elif player_strategy == "edgiest":
+        if circle_contains_position(small_circle, player_position):
+            print("Moving shortest")
+            return move_player_towards(small_circle.position, player_position, player_move_distance)
+        print("Moving edgiest")
+        point_to_move_to = choose_edgiest_point(big_circle, small_circle, player_position, player_move_distance)
+        return move_player_towards(point_to_move_to, player_position, player_move_distance)
     else:
         raise Exception("Unknown strategy {}".format(player_strategy))
 
@@ -72,7 +100,7 @@ def calculate_time_in_gas(current_time_in_gas, current_time, big_circle, small_c
     current_time += time_step
     if close_time >= current_time:
         gas_circle = calculate_gas_circle(big_circle, small_circle, current_time / close_time)
-        moved_player = move_player(small_circle, player_position, player_speed * time_step, player_strategy)
+        moved_player = move_player(big_circle, small_circle, gas_circle, player_position, player_speed * time_step, player_strategy)
         player_in_gas = not circle_contains_position(gas_circle, moved_player)
 
         if not circle_contains_circle(big_circle, small_circle):
